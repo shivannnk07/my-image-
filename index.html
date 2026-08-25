@@ -106,26 +106,15 @@
   </div>
 </div>
 
-<script type="module">
-  // Official Gradio JS client — manual SSE stream parsing hataake, ye backend
-  // ke saath connect/call karne ka reliable, maintained tareeqa hai.
-  import { Client } from "https://esm.sh/@gradio/client";
-
-  // Gradio JS client "username/space-name" format leta hai, full https:// URL nahi —
-  // isi mismatch ki wajah se pehle connect fail ho raha tha.
-  const SPACE_ID = "shivank999/mera-image-generator";
+<script>
+  // Ab frontend seedha Gradio/HF Space ko call nahi karta — apne khud ke
+  // Vercel backend route (/api/generate) ko call karta hai. HF token wahan
+  // server pe (environment variable se) chhupa rehta hai, browser mein kabhi nahi aata.
 
   document.getElementById('steps').oninput = e => document.getElementById('stepsVal').innerText = e.target.value;
   document.getElementById('guidance').oninput = e => document.getElementById('guidanceVal').innerText = e.target.value;
 
-  // Client connection ko cache kar lo taaki har generate pe dubara connect na karna pade
-  let clientPromise = null;
-  function getClient() {
-    if (!clientPromise) clientPromise = Client.connect(SPACE_ID);
-    return clientPromise;
-  }
-
-  window.generateImage = async function generateImage() {
+  async function generateImage() {
     const prompt = document.getElementById('prompt').value.trim();
     const errorMsg = document.getElementById('errorMsg');
     const resultBox = document.getElementById('resultBox');
@@ -145,26 +134,29 @@
       const steps = Number(document.getElementById('steps').value);
       const guidance = Number(document.getElementById('guidance').value);
 
-      const client = await getClient();
-      const result = await client.predict("/generate", [prompt, steps, guidance]);
+      const response = await fetch('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt, steps, guidance }),
+      });
 
-      // gr.Image output ek FileData object deta hai jisme url ya path hota hai
-      const output = result.data[0];
-      const imageUrl = (typeof output === "string") ? output : (output.url || output.path);
+      const data = await response.json();
 
-      if (!imageUrl) throw new Error("Image URL nahi mili response mein");
+      if (!response.ok) {
+        throw new Error(data.error || 'Kuch galat ho gaya');
+      }
 
-      resultBox.innerHTML = `<img src="${imageUrl}" alt="Generated image">`;
+      resultBox.innerHTML = `<img src="${data.imageUrl}" alt="Generated image">`;
     } catch (err) {
       console.error(err);
-      // Asli error message dikhao taaki debug karna aasan ho (screenshot lene ki zaroorat na pade)
+      // Asli error message dikhao taaki debug karna aasan ho
       errorMsg.innerText = "Error: " + (err?.message || String(err));
       resultBox.innerHTML = '<p class="placeholder">Generated image yahan dikhegi</p>';
     } finally {
       btn.disabled = false;
       btn.innerText = "Generate image";
     }
-  };
+  }
 </script>
 </body>
 </html>

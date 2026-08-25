@@ -1,0 +1,8 @@
+{
+  "name": "mera-ai-image-generator",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@gradio/client": "^1.6.0"
+  }
+}

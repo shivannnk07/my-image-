@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mera AI Image Generator</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: #0f0f14;
+    color: #eaeaea;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+  .container { max-width: 900px; width: 100%; }
+  h1 {
+    text-align: center;
+    font-size: 28px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    background: linear-gradient(90deg, #a78bfa, #f472b6);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .subtitle { text-align: center; color: #9ca3af; margin-bottom: 32px; font-size: 14px; }
+  .card {
+    background: #17171f;
+    border: 1px solid #2a2a35;
+    border-radius: 16px;
+    padding: 24px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 700px) { .card { grid-template-columns: 1fr; } }
+  label { font-size: 13px; color: #9ca3af; display: block; margin-bottom: 6px; }
+  textarea, input[type=range] { width: 100%; }
+  textarea {
+    background: #0f0f14;
+    border: 1px solid #2a2a35;
+    border-radius: 8px;
+    color: #eaeaea;
+    padding: 12px;
+    font-size: 14px;
+    resize: none;
+    min-height: 80px;
+  }
+  .slider-row { margin-top: 16px; }
+  .slider-val { float: right; color: #a78bfa; font-size: 13px; }
+  button {
+    margin-top: 20px;
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #7c3aed, #db2777);
+    color: white;
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .result-box {
+    background: #0f0f14;
+    border: 1px solid #2a2a35;
+    border-radius: 8px;
+    min-height: 300px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .result-box img { width: 100%; height: 100%; object-fit: cover; }
+  .placeholder { color: #4b5563; font-size: 13px; text-align: center; }
+  .error { color: #f87171; font-size: 13px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Mera AI Image Generator</h1>
+  <p class="subtitle">Apna khud ka free, local-powered AI image tool</p>
+  <div class="card">
+    <div>
+      <label>Prompt</label>
+      <textarea id="prompt" placeholder="jaise: a majestic lion in a sunset forest, cinematic lighting"></textarea>
+
+      <div class="slider-row">
+        <label>Quality steps <span class="slider-val" id="stepsVal">30</span></label>
+        <input type="range" id="steps" min="10" max="50" value="30">
+      </div>
+      <div class="slider-row">
+        <label>Guidance scale <span class="slider-val" id="guidanceVal">3.5</span></label>
+        <input type="range" id="guidance" min="1" max="10" step="0.5" value="3.5">
+      </div>
+
+      <button id="genBtn" onclick="generateImage()">Generate image</button>
+      <div class="error" id="errorMsg"></div>
+    </div>
+    <div class="result-box" id="resultBox">
+      <p class="placeholder">Generated image yahan dikhegi</p>
+    </div>
+  </div>
+</div>
+
+<script>
+  const BACKEND_URL = "https://shivank999-mera-image-generator.hf.space";
+
+  document.getElementById('steps').oninput = e => document.getElementById('stepsVal').innerText = e.target.value;
+  document.getElementById('guidance').oninput = e => document.getElementById('guidanceVal').innerText = e.target.value;
+
+  async function generateImage() {
+    const prompt = document.getElementById('prompt').value.trim();
+    const errorMsg = document.getElementById('errorMsg');
+    const resultBox = document.getElementById('resultBox');
+    const btn = document.getElementById('genBtn');
+
+    errorMsg.innerText = "";
+    if (!prompt) {
+      errorMsg.innerText = "Pehle prompt likho";
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerText = "Generate ho raha hai...";
+    resultBox.innerHTML = '<p class="placeholder">Generate ho raha hai, thoda wait karo...</p>';
+
+    try {
+      const steps = document.getElementById('steps').value;
+      const guidance = document.getElementById('guidance').value;
+
+      const response = await fetch(`${BACKEND_URL}/gradio_api/call/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ data: [prompt, Number(steps), Number(guidance)] })
+      });
+      const { event_id } = await response.json();
+
+      const resultResp = await fetch(`${BACKEND_URL}/gradio_api/call/generate/${event_id}`);
+      const reader = resultResp.body.getReader();
+      const decoder = new TextDecoder();
+      let resultText = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        resultText += decoder.decode(value);
+      }
+      const match = resultText.match(/data: (.+)/);
+      const data = JSON.parse(match[1]);
+      const imageUrl = data[0].url;
+
+      resultBox.innerHTML = `<img src="${imageUrl}" alt="Generated image">`;
+    } catch (err) {
+      errorMsg.innerText = "Kuch galat ho gaya. Backend URL check karo.";
+      resultBox.innerHTML = '<p class="placeholder">Generated image yahan dikhegi</p>';
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Generate image";
+    }
+  }
+</script>
+</body>
+</html>

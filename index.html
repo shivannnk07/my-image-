@@ -111,7 +111,9 @@
   // ke saath connect/call karne ka reliable, maintained tareeqa hai.
   import { Client } from "https://esm.sh/@gradio/client";
 
-  const BACKEND_URL = "https://shivank999-mera-image-generator.hf.space";
+  // Gradio JS client "username/space-name" format leta hai, full https:// URL nahi —
+  // isi mismatch ki wajah se pehle connect fail ho raha tha.
+  const SPACE_ID = "shivank999/mera-image-generator";
 
   document.getElementById('steps').oninput = e => document.getElementById('stepsVal').innerText = e.target.value;
   document.getElementById('guidance').oninput = e => document.getElementById('guidanceVal').innerText = e.target.value;
@@ -119,7 +121,7 @@
   // Client connection ko cache kar lo taaki har generate pe dubara connect na karna pade
   let clientPromise = null;
   function getClient() {
-    if (!clientPromise) clientPromise = Client.connect(BACKEND_URL);
+    if (!clientPromise) clientPromise = Client.connect(SPACE_ID);
     return clientPromise;
   }
 
@@ -155,7 +157,8 @@
       resultBox.innerHTML = `<img src="${imageUrl}" alt="Generated image">`;
     } catch (err) {
       console.error(err);
-      errorMsg.innerText = "Kuch galat ho gaya. Backend URL check karo.";
+      // Asli error message dikhao taaki debug karna aasan ho (screenshot lene ki zaroorat na pade)
+      errorMsg.innerText = "Error: " + (err?.message || String(err));
       resultBox.innerHTML = '<p class="placeholder">Generated image yahan dikhegi</p>';
     } finally {
       btn.disabled = false;

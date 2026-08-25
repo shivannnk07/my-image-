@@ -106,13 +106,24 @@
   </div>
 </div>
 
-<script>
+<script type="module">
+  // Official Gradio JS client — manual SSE stream parsing hataake, ye backend
+  // ke saath connect/call karne ka reliable, maintained tareeqa hai.
+  import { Client } from "https://esm.sh/@gradio/client";
+
   const BACKEND_URL = "https://shivank999-mera-image-generator.hf.space";
 
   document.getElementById('steps').oninput = e => document.getElementById('stepsVal').innerText = e.target.value;
   document.getElementById('guidance').oninput = e => document.getElementById('guidanceVal').innerText = e.target.value;
 
-  async function generateImage() {
+  // Client connection ko cache kar lo taaki har generate pe dubara connect na karna pade
+  let clientPromise = null;
+  function getClient() {
+    if (!clientPromise) clientPromise = Client.connect(BACKEND_URL);
+    return clientPromise;
+  }
+
+  window.generateImage = async function generateImage() {
     const prompt = document.getElementById('prompt').value.trim();
     const errorMsg = document.getElementById('errorMsg');
     const resultBox = document.getElementById('resultBox');
@@ -129,38 +140,28 @@
     resultBox.innerHTML = '<p class="placeholder">Generate ho raha hai, thoda wait karo...</p>';
 
     try {
-      const steps = document.getElementById('steps').value;
-      const guidance = document.getElementById('guidance').value;
+      const steps = Number(document.getElementById('steps').value);
+      const guidance = Number(document.getElementById('guidance').value);
 
-      const response = await fetch(`${BACKEND_URL}/gradio_api/call/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ data: [prompt, Number(steps), Number(guidance)] })
-      });
-      const { event_id } = await response.json();
+      const client = await getClient();
+      const result = await client.predict("/generate", [prompt, steps, guidance]);
 
-      const resultResp = await fetch(`${BACKEND_URL}/gradio_api/call/generate/${event_id}`);
-      const reader = resultResp.body.getReader();
-      const decoder = new TextDecoder();
-      let resultText = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        resultText += decoder.decode(value);
-      }
-      const match = resultText.match(/data: (.+)/);
-      const data = JSON.parse(match[1]);
-      const imageUrl = data[0].url;
+      // gr.Image output ek FileData object deta hai jisme url ya path hota hai
+      const output = result.data[0];
+      const imageUrl = (typeof output === "string") ? output : (output.url || output.path);
+
+      if (!imageUrl) throw new Error("Image URL nahi mili response mein");
 
       resultBox.innerHTML = `<img src="${imageUrl}" alt="Generated image">`;
     } catch (err) {
+      console.error(err);
       errorMsg.innerText = "Kuch galat ho gaya. Backend URL check karo.";
       resultBox.innerHTML = '<p class="placeholder">Generated image yahan dikhegi</p>';
     } finally {
       btn.disabled = false;
       btn.innerText = "Generate image";
     }
-  }
+  };
 </script>
 </body>
 </html>
